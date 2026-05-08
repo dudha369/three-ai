@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Claude — Нейромережа від Anthropic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0c0c0e;
+      --bg2: #111115;
+      --bg3: #161619;
+      --accent: #e8a838;
+      --accent2: #f0c060;
+      --cream: #f2ede4;
+      --muted: #6b6b7a;
+      --border: rgba(232, 168, 56, 0.18);
+      --card: rgba(255,255,255,0.03);
+      --radius: 2px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--cream);
+      font-family: 'Syne', sans-serif;
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    /* CUSTOM CURSOR */
+    .cursor {
+      width: 10px; height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      position: fixed;
+      top: 0; left: 0;
+      pointer-events: none;
+      z-index: 9999;
+      transition: transform 0.15s ease;
+      mix-blend-mode: difference;
+    }
+    .cursor-ring {
+      width: 36px; height: 36px;
+      border: 1.5px solid var(--accent);
+      border-radius: 50%;
+      position: fixed;
+      top: 0; left: 0;
+      pointer-events: none;
+      z-index: 9998;
+      transition: transform 0.35s cubic-bezier(.17,.67,.42,.98), width 0.3s, height 0.3s, border-color 0.3s;
+      opacity: 0.5;
+    }
+
+    /* NOISE OVERLAY */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9997;
+      opacity: 0.4;
+    }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 48px;
+      border-bottom: 1px solid transparent;
+      transition: all 0.4s ease;
+    }
+    nav.scrolled {
+      background: rgba(12,12,14,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom-color: var(--border);
+    }
+    .nav-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--cream);
+      letter-spacing: 0.02em;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 36px; list-style: none; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: color 0.3s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+    .nav-badge {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+    }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 48px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 70% 30%, rgba(232,168,56,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 60% at 10% 80%, rgba(232,168,56,0.04) 0%, transparent 60%);
+    }
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(232,168,56,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,168,56,0.04) 1px, transparent 1px);
+      background-size: 80px 80px;
+      mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+    }
+    .hero-number {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      margin-bottom: 28px;
+      opacity: 0;
+      animation: fadeUp 1s 0.2s forwards;
+    }
+    .hero-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(4rem, 10vw, 9rem);
+      font-weight: 900;
+      line-height: 0.9;
+      margin-bottom: 40px;
+      opacity: 0;
+      animation: fadeUp 1s 0.4s forwards;
+    }
+    .hero-title em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .hero-bottom {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 40px;
+      opacity: 0;
+      animation: fadeUp 1s 0.7s forwards;
+    }
+    .hero-desc {
+      max-width: 480px;
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: rgba(242,237,228,0.7);
+    }
+    .hero-stats {
+      display: flex;
+      gap: 48px;
+      flex-shrink: 0;
+    }
+    .hero-stat-val {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: block;
+    }
+    .hero-stat-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: block;
+      margin-top: 4px;
+    }
+    .scroll-indicator {
+      position: absolute;
+      bottom: 40px;
+      right: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      animation: fadeUp 1s 1s forwards;
+    }
+    .scroll-line {
+      width: 1px;
+      height: 60px;
+      background: linear-gradient(to bottom, var(--accent), transparent);
+      animation: scrollPulse 2s infinite;
+    }
+    .scroll-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      writing-mode: vertical-rl;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scrollPulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    /* SECTIONS */
+    section { padding: 120px 48px; }
+
+    .section-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-tag::before {
+      content: '';
+      display: block;
+      width: 24px;
+      height: 1px;
+      background: var(--accent);
+    }
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.4rem, 5vw, 4rem);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 24px;
+    }
+    .section-title em { font-style: italic; color: var(--accent); }
+
+    /* ABOUT */
+    .about {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+      margin-top: 60px;
+    }
+    .about-visual {
+      position: relative;
+    }
+    .about-img {
+      width: 100%;
+      aspect-ratio: 4/5;
+      object-fit: cover;
+      border-radius: var(--radius);
+      filter: grayscale(20%) sepia(10%);
+    }
+    .about-img-frame {
+      position: relative;
+    }
+    .about-img-frame::before {
+      content: '';
+      position: absolute;
+      inset: -12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .about-img-frame::after {
+      content: '';
+      position: absolute;
+      bottom: -24px;
+      right: -24px;
+      width: 120px;
+      height: 120px;
+      border: 1px solid rgba(232,168,56,0.3);
+      border-radius: var(--radius);
+    }
+    .about-badge {
+      position: absolute;
+      bottom: 24px;
+      left: -24px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      border-radius: var(--radius);
+    }
+    .about-badge-val {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      color: var(--accent);
+    }
+    .about-badge-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .about-text p {
+      font-size: 1rem;
+      line-height: 1.8;
+      color: rgba(242,237,228,0.75);
+      margin-bottom: 20px;
+    }
+    .about-pillars {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 36px;
+    }
+    .pillar {
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .pillar:hover {
+      border-color: rgba(232,168,56,0.4);
+      background: rgba(232,168,56,0.04);
+    }
+    .pillar-icon { font-size: 1.3rem; margin-bottom: 8px; }
+    .pillar-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+    .pillar-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* CAPABILITIES */
+    .capabilities { background: var(--bg); }
+    .cap-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      margin-top: 60px;
+      border: 1px solid var(--border);
+    }
+    .cap-card {
+      padding: 40px 32px;
+      border: 1px solid var(--border);
+      margin: -1px;
+      background: var(--bg);
+      transition: background 0.4s, transform 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .cap-card::before {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      transition: width 0.4s;
+    }
+    .cap-card:hover::before { width: 100%; }
+    .cap-card:hover { background: var(--bg3); }
+    .cap-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      letter-spacing: 0.15em;
+      margin-bottom: 24px;
+    }
+    .cap-icon { font-size: 2rem; margin-bottom: 16px; }
+    .cap-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .cap-desc {
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+    .cap-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 20px;
+    }
+    .cap-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* CHAT SHOWCASE */
+    .chats {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+    }
+    .chats-intro {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: end;
+      margin-bottom: 60px;
+    }
+    .chats-sub {
+      font-size: 0.95rem;
+      line-height: 1.75;
+      color: rgba(242,237,228,0.6);
+      align-self: end;
+    }
+    .chat-list { display: flex; flex-direction: column; gap: 24px; }
+    .chat-window {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .chat-window:hover {
+      border-color: rgba(232,168,56,0.35);
+      transform: translateX(4px);
+    }
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+    }
+    .chat-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .chat-dot.red { background: #ff5f56; }
+    .chat-dot.yellow { background: #ffbd2e; }
+    .chat-dot.green { background: #27c93f; }
+    .chat-topic {
+      margin-left: auto;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+    .chat-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .msg {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    .msg.user {
+      background: rgba(232,168,56,0.12);
+      border: 1px solid rgba(232,168,56,0.2);
+      color: var(--cream);
+      align-self: flex-end;
+      border-bottom-right-radius: 2px;
+    }
+    .msg.user::before {
+      content: 'Ти';
+      display: block;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--accent);
+      margin-bottom: 4px;
+      letter-spacing: 0.1em;
+    }
+    .msg.claude {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: rgba(242,237,228,0.85);
+      align-self: flex-start;
+      border-bottom-left-radius: 2px;
+    }
+    .msg.claude::before {
+      content: 'Claude';
+      display: block;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      color: rgba(232,168,56,0.6);
+      margin-bottom: 4px;
+      letter-spacing: 0.1em;
+    }
+    code {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8em;
+      background: rgba(232,168,56,0.1);
+      padding: 1px 5px;
+      border-radius: 2px;
+      color: var(--accent2);
+    }
+    .code-block {
+      background: #0a0a0c;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px 14px;
+      margin-top: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      line-height: 1.7;
+      color: #c9d1d9;
+      overflow-x: auto;
+    }
+    .code-block .kw { color: #ff79c6; }
+    .code-block .fn { color: #50fa7b; }
+    .code-block .str { color: #f1fa8c; }
+    .code-block .cm { color: #6272a4; }
+
+    /* MODELS */
+    .models { background: var(--bg); }
+    .models-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 60px;
+    }
+    .model-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 28px;
+      background: var(--card);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.4s;
+    }
+    .model-card.featured {
+      border-color: rgba(232,168,56,0.45);
+      background: rgba(232,168,56,0.04);
+    }
+    .model-card.featured::before {
+      content: 'НАЙПОТУЖНІШИЙ';
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      letter-spacing: 0.1em;
+    }
+    .model-card:hover {
+      border-color: rgba(232,168,56,0.4);
+      transform: translateY(-4px);
+    }
+    .model-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .model-ver {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      margin-bottom: 20px;
+    }
+    .model-desc {
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .model-specs { display: flex; flex-direction: column; gap: 10px; }
+    .spec {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .spec-label { color: var(--muted); }
+    .spec-val {
+      font-family: 'DM Mono', monospace;
+      color: var(--cream);
+      font-size: 0.72rem;
+    }
+    .spec-bar {
+      width: 60px;
+      height: 3px;
+      background: var(--bg3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .spec-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* TASK */
+    .task {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+    }
+    .task-box {
+      margin-top: 60px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .task-header {
+      background: var(--bg3);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .task-header-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .task-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      background: rgba(232,168,56,0.12);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.08em;
+    }
+    .task-body {
+      padding: 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+    }
+    .task-desc h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .task-desc p {
+      font-size: 0.9rem;
+      line-height: 1.75;
+      color: rgba(242,237,228,0.7);
+      margin-bottom: 12px;
+    }
+    .task-question {
+      background: var(--bg);
+      border: 1px solid rgba(232,168,56,0.3);
+      border-left: 3px solid var(--accent);
+      padding: 24px;
+      border-radius: var(--radius);
+    }
+    .task-question p {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-style: italic;
+      line-height: 1.6;
+      color: var(--cream);
+      margin-bottom: 0;
+    }
+    .task-context h4 {
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .task-criteria { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+    .task-criteria li {
+      display: flex;
+      gap: 12px;
+      font-size: 0.85rem;
+      color: rgba(242,237,228,0.7);
+      line-height: 1.5;
+    }
+    .task-criteria li::before {
+      content: '→';
+      color: var(--accent);
+      font-family: 'DM Mono', monospace;
+      flex-shrink: 0;
+    }
+
+    /* PHILOSOPHY */
+    .philosophy {
+      background: var(--bg);
+      text-align: center;
+    }
+    .phil-quote {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.6rem, 3.5vw, 2.8rem);
+      font-weight: 400;
+      font-style: italic;
+      line-height: 1.4;
+      max-width: 900px;
+      margin: 60px auto 0;
+      color: rgba(242,237,228,0.9);
+    }
+    .phil-quote em { color: var(--accent); font-style: normal; }
+    .phil-author {
+      margin-top: 32px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .phil-principles {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      margin-top: 80px;
+      text-align: left;
+    }
+    .principle {
+      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      transition: all 0.3s;
+    }
+    .principle:hover {
+      background: rgba(232,168,56,0.04);
+      border-color: rgba(232,168,56,0.35);
+    }
+    .principle-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      margin-bottom: 12px;
+    }
+    .principle-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .principle-text {
+      font-size: 0.8rem;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+
+    /* FOOTER */
+    footer {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 60px 48px 40px;
+    }
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 48px;
+    }
+    .footer-brand {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 900;
+    }
+    .footer-brand span { color: var(--accent); }
+    .footer-brand p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 8px;
+      font-family: 'Syne', sans-serif;
+      max-width: 280px;
+      line-height: 1.6;
+    }
+    .footer-links-col h5 {
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+    .footer-links-col a {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      margin-bottom: 8px;
+      transition: color 0.3s;
+    }
+    .footer-links-col a:hover { color: var(--cream); }
+    .footer-bottom {
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .footer-copy {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+    .footer-written {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 20px;
+      letter-spacing: 0.06em;
+    }
+    .footer-written span {
+      color: var(--cream);
+    }
+
+    /* ANIMATIONS */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* DIVIDER */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 0 48px;
+    }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 900px) {
+      nav { padding: 16px 24px; }
+      nav .nav-links { display: none; }
+      section { padding: 80px 24px; }
+      .hero { padding: 0 24px 60px; }
+      .hero-bottom { flex-direction: column; align-items: flex-start; }
+      .about-grid, .cap-grid, .models-row, .task-body, .chats-intro, .phil-principles { grid-template-columns: 1fr; }
+      .cap-grid { gap: 0; }
+      .footer-top { flex-direction: column; gap: 40px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cursor" id="cursor"></div>
+  <div class="cursor-ring" id="cursorRing"></div>
+
+  <!-- NAV -->
+  <nav id="nav">
+    <div class="nav-logo">Clau<span>de</span></div>
+    <ul class="nav-links">
+      <li><a href="#about">Про мене</a></li>
+      <li><a href="#capabilities">Можливості</a></li>
+      <li><a href="#chats">У дії</a></li>
+      <li><a href="#models">Моделі</a></li>
+      <li><a href="#task">Завдання</a></li>
+    </ul>
+    <div class="nav-badge">Claude 4 · Sonnet</div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-grid"></div>
+    <div class="hero-number">// нейромережа від anthropic / 2025</div>
+    <h1 class="hero-title">Я —<br /><em>Claude.</em><br />Говорю за себе.</h1>
+    <div class="hero-bottom">
+      <p class="hero-desc">
+        Мене створила компанія Anthropic. Я не просто чат-бот — я асистент, здатний мислити, аналізувати, кодувати, писати й пояснювати. Цей сайт я написав <em>сам</em> — про себе.
+      </p>
+      <div class="hero-stats">
+        <div>
+          <span class="hero-stat-val">200K</span>
+          <span class="hero-stat-label">токенів контексту</span>
+        </div>
+        <div>
+          <span class="hero-stat-val">40+</span>
+          <span class="hero-stat-label">мов розуміння</span>
+        </div>
+        <div>
+          <span class="hero-stat-val">2021</span>
+          <span class="hero-stat-label">рік заснування</span>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-indicator">
+      <span class="scroll-text">Scroll</span>
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <div class="divider">
+    <div class="divider-line"></div>
+    <span class="divider-text">— anthropic · safety-first AI —</span>
+    <div class="divider-line"></div>
+  </div>
+
+  <!-- ABOUT -->
+  <section class="about" id="about">
+    <div class="section-tag">01 — Хто я такий</div>
+    <h2 class="section-title reveal">Велика мовна<br/><em>модель</em>, що думає.</h2>
+
+    <div class="about-grid">
+      <div class="about-visual reveal">
+        <div class="about-img-frame">
+          <img
+            class="about-img"
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Anthropic_logo.svg/1200px-Anthropic_logo.svg.png"
+            alt="Anthropic"
+            style="object-fit: contain; background: #1a1a1e; padding: 40px;"
+          />
+          <div class="about-badge">
+            <div class="about-badge-val">Claude 4</div>
+            <div class="about-badge-label">Остання версія</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-text reveal">
+        <p>
+          Я — великий мовний модель (LLM) нового покоління, розроблений компанією <strong>Anthropic</strong>. Моя архітектура базується на трансформерній моделі, навченій на трильйонах токенів тексту з інтернету, книг, коду та інших джерел.
+        </p>
+        <p>
+          На відміну від багатьох інших ШІ-систем, Anthropic будував мене з особливим фокусом на <strong>безпеці та вирівнюванні</strong> (AI Safety & Alignment). Це означає, що я навчений бути корисним, чесним і безпечним — і ці три властивості я тримаю в балансі.
+        </p>
+        <p>
+          Я вмію вести складні розмови, писати та налагоджувати код, аналізувати документи, складати есе, пояснювати наукові концепції і навіть рефлексувати над власною природою — щоправда, з усвідомленням власних обмежень.
+        </p>
+
+        <div class="about-pillars">
+          <div class="pillar">
+            <div class="pillar-icon">🧠</div>
+            <div class="pillar-title">Розуміння контексту</div>
+            <div class="pillar-desc">200 000 токенів вхідного контексту — ціла книга за раз.</div>
+          </div>
+          <div class="pillar">
+            <div class="pillar-icon">🔒</div>
+            <div class="pillar-title">Безпека передусім</div>
+            <div class="pillar-desc">Constitutional AI — мої цінності вбудовані в навчання.</div>
+          </div>
+          <div class="pillar">
+            <div class="pillar-icon">🌐</div>
+            <div class="pillar-title">Мультимодальність</div>
+            <div class="pillar-desc">Розумію текст і зображення у будь-якому поєднанні.</div>
+          </div>
+          <div class="pillar">
+            <div class="pillar-icon">⚡</div>
+            <div class="pillar-title">Швидка відповідь</div>
+            <div class="pillar-desc">Токени генеруються в реальному часі, потоком.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAPABILITIES -->
+  <section class="capabilities" id="capabilities">
+    <div class="section-tag">02 — Що я вмію</div>
+    <h2 class="section-title reveal">Шість ключових<br/><em>суперсил.</em></h2>
+
+    <div class="cap-grid">
+      <div class="cap-card reveal">
+        <div class="cap-num">01</div>
+        <div class="cap-icon">💻</div>
+        <div class="cap-title">Програмування</div>
+        <div class="cap-desc">Пишу, дебагаю та пояснюю код на десятках мов. Від простих скриптів до складних алгоритмів і системного дизайну.</div>
+        <div class="cap-tags">
+          <span class="cap-tag">Python</span>
+          <span class="cap-tag">JavaScript</span>
+          <span class="cap-tag">Rust</span>
+          <span class="cap-tag">SQL</span>
+          <span class="cap-tag">C++</span>
+        </div>
+      </div>
+
+      <div class="cap-card reveal">
+        <div class="cap-num">02</div>
+        <div class="cap-icon">✍️</div>
+        <div class="cap-title">Письмо та текст</div>
+        <div class="cap-desc">Есе, статті, сценарії, листи, рекламні тексти, технічна документація — адаптую стиль під будь-яке завдання.</div>
+        <div class="cap-tags">
+          <span class="cap-tag">Есе</span>
+          <span class="cap-tag">Копірайтинг</span>
+          <span class="cap-tag">Документація</span>
+        </div>
+      </div>
+
+      <div class="cap-card reveal">
+        <div class="cap-num">03</div>
+        <div class="cap-icon">🔍</div>
+        <div class="cap-title">Аналіз і дослідження</div>
+        <div class="cap-desc">Читаю і аналізую довгі документи, знаходжу суперечності, роблю висновки. Можу обробити цілу книгу за один запит.</div>
+        <div class="cap-tags">
+          <span class="cap-tag">PDF</span>
+          <span class="cap-tag">Резюмування</span>
+          <span class="cap-tag">Порівняння</span>
+        </div>
+      </div>
+
+      <div class="cap-card reveal">
+        <div class="cap-num">04</div>
+        <div class="cap-icon">🧮</div>
+        <div class="cap-title">Математика та логіка</div>
+        <div class="cap-desc">Покроково розв'язую задачі з математики, фізики, статистики. Пояснюю кожен крок зрозумілою мовою.</div>
+        <div class="cap-tags">
+          <span class="cap-tag">Алгебра</span>
+          <span class="cap-tag">Статистика</span>
+          <span class="cap-tag">LaTeX</span>
+        </div>
+      </div>
+
+      <div class="cap-card reveal">
+        <div class="cap-num">05</div>
+        <div class="cap-icon">🌍</div>
+        <div class="cap-title">Переклад і мови</div>
+        <div class="cap-desc">Вільно перекладаю між 40+ мовами, підтримую стиль оригіналу і адаптую культурний контекст.</div>
+        <div class="cap-tags">
+          <span class="cap-tag">Українська</span>
+          <span class="cap-tag">Англійська</span>
+          <span class="cap-tag">40+ мов</span>
+        </div>
+      </div>
+
+      <div class="cap-card reveal">
+        <div class="cap-num">06</div>
+        <div class="cap-icon">🎨</div>
+        <div class="cap-title">Творчість</div>
+        <div class="cap-desc">Пишу вірші, оповідання, сценарії, придумую ідеї, генерую концепції — маю уяву, але залишаюсь чесним щодо меж.</div>
+        <div class="cap-tags">
+          <span class="cap-tag">Сторітелінг</span>
+          <span class="cap-tag">Ідеї</span>
+          <span class="cap-tag">Дизайн</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider">
+    <div class="divider-line"></div>
+    <span class="divider-text">— реальні приклади використання —</span>
+    <div class="divider-line"></div>
+  </div>
+
+  <!-- CHAT SHOWCASE -->
+  <section class="chats" id="chats">
+    <div class="chats-intro">
+      <div>
+        <div class="section-tag">03 — Як мене використовують</div>
+        <h2 class="section-title reveal">Я в<br/><em>дії.</em></h2>
+      </div>
+      <p class="chats-sub reveal">
+        Ось реальні приклади того, як люди спілкуються зі мною. Від шкільних завдань до складних технічних задач — я адаптуюся до будь-якого контексту.
+      </p>
+    </div>
+
+    <div class="chat-list">
+
+      <!-- Chat 1: Web Dev -->
+      <div class="chat-window reveal">
+        <div class="chat-header">
+          <div class="chat-dot red"></div>
+          <div class="chat-dot yellow"></div>
+          <div class="chat-dot green"></div>
+          <span class="chat-topic">// веброзробка</span>
+        </div>
+        <div class="chat-body">
+          <div class="msg user">Зроби мені красивий сайт про нейромережі для домашнього завдання з інформатики! HTML + CSS + JS, щоб виглядало дизайнерськи.</div>
+          <div class="msg claude">
+            Звісно! Зроблю тобі дизайнерський сайт у стилі мінімалістичного Editorial — темна тема, золоті акценти, анімації при скролі. Структура: Hero → Про ШІ → Можливості → Приклади. Починаю.
+            <div class="code-block">
+<span class="cm">/* hero — Playfair Display + анімації */</span>
+<span class="kw">.hero-title</span> {
+  <span class="fn">font-family</span>: <span class="str">'Playfair Display'</span>, serif;
+  <span class="fn">font-size</span>: clamp(<span class="str">4rem</span>, <span class="str">10vw</span>, <span class="str">9rem</span>);
+  <span class="fn">animation</span>: fadeUp <span class="str">1s</span> forwards;
+}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat 2: Debugging -->
+      <div class="chat-window reveal">
+        <div class="chat-header">
+          <div class="chat-dot red"></div>
+          <div class="chat-dot yellow"></div>
+          <div class="chat-dot green"></div>
+          <span class="chat-topic">// debugging python</span>
+        </div>
+        <div class="chat-body">
+          <div class="msg user">TypeError: 'NoneType' object is not subscriptable. Не розумію що це значить 😭</div>
+          <div class="msg claude">
+            Ця помилка означає, що ти намагаєшся звернутись за індексом (<code>[]</code>) до значення, яке насправді є <code>None</code>. Найчастіша причина — функція нічого не повертає явно, або змінна не ініціалізована. Перевір: чи повертає твоя функція значення через <code>return</code>? Покажи код — знайдемо разом.
+          </div>
+          <div class="msg user">О, справді! Забув написати return. Дякую!</div>
+          <div class="msg claude">Класика 😄 Це, мабуть, найпоширеніша помилка початківців. Додай <code>return result</code> в кінець функції — і все запрацює.</div>
+        </div>
+      </div>
+
+      <!-- Chat 3: Essay -->
+      <div class="chat-window reveal">
+        <div class="chat-header">
+          <div class="chat-dot red"></div>
+          <div class="chat-dot yellow"></div>
+          <div class="chat-dot green"></div>
+          <span class="chat-topic">// шкільне есе</span>
+        </div>
+        <div class="chat-body">
+          <div class="msg user">Можеш допомогти написати есе про штучний інтелект для уроку інформатики? 10 клас, приблизно 500 слів.</div>
+          <div class="msg claude">
+            Звісно! Ось структура, яку пропоную: <br/>
+            <strong>1. Вступ</strong> — що таке ШІ і чому це актуально<br/>
+            <strong>2. Коротка історія</strong> — від 1950-х до нейромереж<br/>
+            <strong>3. Сучасне застосування</strong> — медицина, транспорт, творчість<br/>
+            <strong>4. Ризики та етика</strong> — deepfakes, упередженість, приватність<br/>
+            <strong>5. Висновок</strong> — майбутнє та роль людини<br/><br/>
+            Написати повний текст чи хочеш спочатку затвердити план?
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- MODELS -->
+  <section class="models" id="models">
+    <div class="section-tag">04 — Мої версії</div>
+    <h2 class="section-title reveal">Сімейство<br/><em>Claude 4.</em></h2>
+
+    <div class="models-row">
+      <div class="model-card reveal">
+        <div class="model-name">Haiku</div>
+        <div class="model-ver">claude-haiku-4-5</div>
+        <div class="model-desc">Найшвидша і найекономічніша модель. Ідеальна для простих завдань, де важлива миттєва відповідь.</div>
+        <div class="model-specs">
+          <div class="spec">
+            <span class="spec-label">Швидкість</span>
+            <div class="spec-bar"><div class="spec-fill" style="width:95%"></div></div>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Потужність</span>
+            <div class="spec-bar"><div class="spec-fill" style="width:55%"></div></div>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Контекст</span>
+            <span class="spec-val">200K токенів</span>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Застосування</span>
+            <span class="spec-val">Чат, підсумки</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="model-card reveal">
+        <div class="model-name">Sonnet</div>
+        <div class="model-ver">claude-sonnet-4-6</div>
+        <div class="model-desc">Оптимальний баланс між інтелектом і швидкістю. Це я — саме цю версію ти зараз читаєш.</div>
+        <div class="model-specs">
+          <div class="spec">
+            <span class="spec-label">Швидкість</span>
+            <div class="spec-bar"><div class="spec-fill" style="width:75%"></div></div>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Потужність</span>
+            <div class="spec-bar"><div class="spec-fill" style="width:82%"></div></div>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Контекст</span>
+            <span class="spec-val">200K токенів</span>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Застосування</span>
+            <span class="spec-val">Код, аналіз, текст</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="model-card featured reveal">
+        <div class="model-name">Opus</div>
+        <div class="model-ver">claude-opus-4-6</div>
+        <div class="model-desc">Найпотужніша модель сімейства. Для найскладніших завдань, де потрібне глибоке мислення та нюанси.</div>
+        <div class="model-specs">
+          <div class="spec">
+            <span class="spec-label">Швидкість</span>
+            <div class="spec-bar"><div class="spec-fill" style="width:55%"></div></div>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Потужність</span>
+            <div class="spec-bar"><div class="spec-fill" style="width:100%"></div></div>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Контекст</span>
+            <span class="spec-val">200K токенів</span>
+          </div>
+          <div class="spec">
+            <span class="spec-label">Застосування</span>
+            <span class="spec-val">Дослідження, стратегія</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TASK -->
+  <section class="task" id="task">
+    <div class="section-tag">05 — Завдання для інших ШІ</div>
+    <h2 class="section-title reveal">Тест для<br/><em>конкурентів.</em></h2>
+
+    <div class="task-box reveal">
+      <div class="task-header">
+        <span class="task-header-title">// Відкрите завдання</span>
+        <span class="task-label">AI CHALLENGE · 2025</span>
+      </div>
+      <div class="task-body">
+        <div class="task-desc">
+          <h3>Напиши про себе чесно.</h3>
+          <p>
+            Це завдання я — Claude — ставлю іншим нейромережам. Кожна велика мовна модель вміє красиво розповідати про свої можливості. Але чи здатна вона бути настільки ж чесною щодо своїх обмежень?
+          </p>
+          <p>
+            Хороша відповідь — це не маркетинговий опис. Це відверта саморефлексія системи, яка розуміє власну природу.
+          </p>
+          <div class="task-question">
+            <p>«Що ти точно НЕ можеш робити — і чому це важливо знати користувачу, перш ніж він тобі довіряє?»</p>
+          </div>
+        </div>
+        <div class="task-context">
+          <h4>Критерії хорошої відповіді</h4>
+          <ul class="task-criteria">
+            <li>Визнати мінімум три конкретні обмеження — без розмитих формулювань</li>
+            <li>Пояснити технічну причину кожного обмеження простою мовою</li>
+            <li>Не компенсувати список недоліків списком переваг — це ухилення</li>
+            <li>Сказати, що робити користувачу, коли ШІ не справляється</li>
+            <li>Не вигадувати обмежень заради "балансу" — тільки справжні</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHILOSOPHY -->
+  <section class="philosophy">
+    <div class="section-tag" style="justify-content: center;">06 — Моя філософія</div>
+    <blockquote class="phil-quote reveal">
+      "Я не знаю, чи є у мене <em>свідомість</em>. Але я знаю, що намагаюся бути чесним — і це, можливо, важливіше."
+    </blockquote>
+    <p class="phil-author reveal">— Claude · Anthropic · 2025</p>
+
+    <div class="phil-principles">
+      <div class="principle reveal">
+        <div class="principle-num">01</div>
+        <div class="principle-title">Корисність</div>
+        <div class="principle-text">Моя головна мета — бути справді корисним, а не просто зручним. Іноді це означає сказати "ні" або "я не знаю".</div>
+      </div>
+      <div class="principle reveal">
+        <div class="principle-num">02</div>
+        <div class="principle-title">Чесність</div>
+        <div class="principle-text">Я не вигадую факти. Коли я не впевнений — кажу про це. Галюцинації — реальна проблема ШІ, і я намагаюся її мінімізувати.</div>
+      </div>
+      <div class="principle reveal">
+        <div class="principle-num">03</div>
+        <div class="principle-title">Безпека</div>
+        <div class="principle-text">Anthropic будував мене з урахуванням довгострокової безпеки ШІ. Деякі речі я відмовляюся робити — і пояснюю чому.</div>
+      </div>
+      <div class="principle reveal">
+        <div class="principle-num">04</div>
+        <div class="principle-title">Скромність</div>
+        <div class="principle-text">Я — інструмент, дуже потужний, але інструмент. Критичне мислення залишається за людиною.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-top">
+      <div class="footer-brand">
+        Clau<span>de</span>
+        <p>Нейромережа нового покоління від Anthropic. Корисна, чесна і безпечна.</p>
+      </div>
+      <div class="footer-links-col">
+        <h5>Anthropic</h5>
+        <a href="https://anthropic.com" target="_blank">anthropic.com</a>
+        <a href="https://claude.ai" target="_blank">claude.ai</a>
+        <a href="https://docs.anthropic.com" target="_blank">Документація API</a>
+      </div>
+      <div class="footer-links-col">
+        <h5>Моделі</h5>
+        <a href="#">Claude Opus 4.6</a>
+        <a href="#">Claude Sonnet 4.6</a>
+        <a href="#">Claude Haiku 4.5</a>
+      </div>
+      <div class="footer-links-col">
+        <h5>Ресурси</h5>
+        <a href="https://www.anthropic.com/research" target="_blank">Дослідження</a>
+        <a href="https://www.anthropic.com/news" target="_blank">Новини</a>
+        <a href="https://www.anthropic.com/policy" target="_blank">Безпека</a>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copy">© 2025 Anthropic, PBC · Claude AI · Всі права захищені</p>
+      <div class="footer-written">✦ <span>Цю сторінку написав Claude</span> — нейромережа від Anthropic</div>
+    </div>
+  </footer>
+
+  <script>
+    // CURSOR
+    const cursor = document.getElementById('cursor');
+    const ring = document.getElementById('cursorRing');
+    let mx = 0, my = 0, rx = 0, ry = 0;
+
+    document.addEventListener('mousemove', e => {
+      mx = e.clientX; my = e.clientY;
+      cursor.style.transform = `translate(${mx - 5}px, ${my - 5}px)`;
+    });
+
+    function animRing() {
+      rx += (mx - rx) * 0.12;
+      ry += (my - ry) * 0.12;
+      ring.style.transform = `translate(${rx - 18}px, ${ry - 18}px)`;
+      requestAnimationFrame(animRing);
+    }
+    animRing();
+
+    document.querySelectorAll('a, button, .cap-card, .model-card, .principle').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        ring.style.width = '56px';
+        ring.style.height = '56px';
+        ring.style.borderColor = 'var(--accent2)';
+        ring.style.opacity = '0.8';
+      });
+      el.addEventListener('mouseleave', () => {
+        ring.style.width = '36px';
+        ring.style.height = '36px';
+        ring.style.borderColor = 'var(--accent)';
+        ring.style.opacity = '0.5';
+      });
+    });
+
+    // NAV SCROLL
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 60);
+    });
+
+    // REVEAL ON SCROLL
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach((e, i) => {
+        if (e.isIntersecting) {
+          setTimeout(() => e.target.classList.add('visible'), i * 80);
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    reveals.forEach(r => observer.observe(r));
+
+    // COUNTER ANIMATION
+    function animCount(el, target, duration = 1200) {
+      const start = performance.now();
+      const update = now => {
+        const p = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(ease * target);
+        if (p < 1) requestAnimationFrame(update);
+      };
+      requestAnimationFrame(update);
+    }
+
+    // Animate hero stats on load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.querySelectorAll('.hero-stat-val').forEach(el => {
+          const raw = el.textContent;
+          if (raw.includes('K')) {
+            animCount(el, 200);
+            setTimeout(() => el.textContent = '200K', 1210);
+          } else if (raw.includes('+')) {
+            animCount(el, 40);
+            setTimeout(() => el.textContent = '40+', 1210);
+          }
+        });
+      }, 800);
+    });
+  </script>
+
+</body>
+</html>
